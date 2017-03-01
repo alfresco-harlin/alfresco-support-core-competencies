@@ -1,0 +1,100 @@
+
+Issue case:
+
+. Get down to what the problem is.
+. Come up with some ideas as to what is causing the problem.
+. List diagnosis based on most likely to least likely
+. For each diagnosis,
+
+	if diagnosis may be a bug,
+
+		. Look for existing JIRA
+		. Look for ways to reproduce problem
+
+			Test for issue using version customer is on and highest version and highest sp version of major version the customer is on.
+
+	Find solution
+
+		if found,
+
+			Test solution
+
+				if it works,
+
+					deliver solution to customer and have him test
+
+				if not,
+
+					present steps to another engineer who knows the area well and see if this was correct
+
+					if correct,
+
+						troubleshooting until you can show it works then deliver to customer and have him test
+
+					if not,
+
+						test corrected solution
+
+							if not, go back to expert
+
+
+
+
+
+
+Question case:
+
+. Found what problem he is trying to solve.
+. Find the best practice way to accomplish this.
+
+	if Yes,
+
+		Test solution
+
+			if it works,
+
+				deliver solution to customer and have him test
+
+			if not,
+
+				present steps to another engineer who knows the area well and see if this was correct
+
+				if correct,
+
+					troubleshooting until you can show it works then deliver to customer and have him test
+
+				if not,
+
+					test corrected solution
+
+						if not, go back to expert
+
+	if not,
+
+		Investigate with a workaround
+
+			if you find something,
+
+				test solution
+
+					if it works,
+
+						deliver solution to customer and have him test
+
+					if not,
+
+						present steps to another engineer who knows the area well and see if this was correct
+
+						if correct,
+
+							troubleshooting until you can show it works then deliver to customer and have him test
+
+						if not,
+
+							test corrected solution
+
+								if not, go back to expert
+
+			if you cannot find something,
+
+				go to expert and get some ideas

@@ -1355,6 +1355,139 @@ Authentication
 			</alfresco-config>
 
 
+		- Additional Setup:
+
+			--- On the Alfresco server create a file called /etc/krb5.conf and put these in it:
+
+				[logging]
+				 default = FILE:/var/log/krb5libs.log
+				 kdc = FILE:/var/log/krb5kdc.log
+				 admin_server = FILE:/var/log/kadmind.log
+
+				[libdefaults]
+				 default_realm = EXAMPLE.FOO
+				 default_tkt_enctypes = rc4-hmac
+				 default_tgs_enctypes = rc4-hmac
+
+				[realms]
+				 EXAMPLE.FOO = {
+				  kdc = 192.168.63.195
+				  admin_server = 192.168.63.195
+				 }
+
+			--- On the AD server create two accounts - they don't have to belong to any group in particular:
+			alfrescocifs and alfrescohttp
+			
+			--- for each of these 2 users do:
+
+				Right click the new user account name, 
+				select Properties, 
+				go to the Account tab and enable the Do not require Kerberos preauthentication option in the Account Options section. This sets the DONT_REQ_PREAUTH flag in your directory for that user.
+
+				On the Alfresco server:
+				--- yum install openldap-clients
+				--- from Alfresco server run (this will check to make sure the alfrescocifs is in place):
+				ldapsearch -h 192.168.63.195 -x -D "CN=Administrator,CN=Users,DC=example,DC=foo" -W -b 'DC=example,DC=foo' '(sAMAccountName=alfrescocifs)' sAMAccountName userAccountControl
+
+				and
+
+				ldapsearch -h 192.168.63.195 -x -D "CN=Administrator,CN=Users,DC=example,DC=foo" -W -b 'DC=example,DC=foo' '(sAMAccountName=alfrescohttp)' sAMAccountName userAccountControl
+
+			--- On the AD server, create the Service Principal Names (SPN) for the Alfresco CIFS and Alfresco HTTP server using the setspn utility. The setspn utility is a free download from the Microsoft site, and is also part of the Windows Server 2003 Support Tools download (http://www.microsoft.com/en-us/download/details.aspx?id=7911).
+			
+				On Windows at the command line:
+				
+				setspn -a cifs/<cifs-server-name> alfrescocifs
+				setspn -a cifs/<cifs-server-name>.<domain> alfrescocifs
+				setspn -a HTTP/<web-server-name> alfrescohttp
+				setspn -a HTTP/<web-server-name>.<domain> alfrescohttp
+
+			--- set the TRUSTED_FOR_DELEGATION flag on the Alfresco HTTP user:
+
+				Open Active Directory Domains and Trusts.
+				
+				In the console tree, right-click the domain for which you want to raise functionality, and then click Raise Domain Functional Level.
+				
+				In Select an available domain functional level, do one of the following:
+				
+				To raise the domain functional level to Windows 2000 native, click Windows 2000 native, and then click Raise.
+				
+				To raise domain functional level to Windows Server 2003, click Windows Server 2003, and then click Raise.
+				
+				This will cause the delegation tab to appear, so right-click on user "Alfreso HTTP", select properties, tick "Trust this user for delegation to any service (kerberos only)". Click 
+
+				Apply. Click OK.
+
+			--- On the AD server, create a c:\temp directory and run:
+
+				# ktpass -princ cifs/alfrescodemo.com@EXAMPLE.FOO -pass Alfr3sc0 -mapuser example\alfrescocifs -crypto RC4-HMAC-NT -ptype KRB5_NT_PRINCIPAL -out c:\temp\alfrescocifs.keytab -kvno 0
+				
+				# ktpass -princ HTTP/alfrescodemo.com@EXAMPLE.FOO -pass Alfr3sc0 -mapuser example\alfrescohttp -crypto RC4-HMAC-NT -ptype KRB5_NT_PRINCIPAL -out c:\temp\alfrescohttp.keytab -kvno 0
+
+			--- Download and install winscp on Win2k3, transfer the keytab files to /etc/ on the Alfresco servers
+
+			--- yum install krb5-workstation
+			--- kinit -k -V -t /etc/keys/alfrescocifs.keytab "cifs/alfrescodemo.com"
+			--- kinit -k -V -t /etc/keys/alfrescohttp.keytab "HTTP/alfrescodemo.com"
+			--- cd /java/jdk1.6.0_33/jre/lib/security
+			--- vi java.login.config and add these lines:
+
+				Alfresco {
+				   com.sun.security.auth.module.Krb5LoginModule sufficient;
+				};
+
+				AlfrescoCIFS {
+				   com.sun.security.auth.module.Krb5LoginModule required
+				   storeKey=true
+				   useKeyTab=true
+				   keyTab="/etc/keys/alfrescocifs.keytab"
+				   principal="cifs/alfrescodemo.com";
+				};
+
+				AlfrescoHTTP {
+				   com.sun.security.auth.module.Krb5LoginModule required
+				   storeKey=true
+				   useKeyTab=true
+				   keyTab="/etc/keys/alfrescohttp.keytab"
+				   principal="HTTP/alfrescodemo.com";
+				};
+
+				ShareHTTP {
+				   com.sun.security.auth.module.Krb5LoginModule required
+				   storeKey=true
+				   useKeyTab=true
+				   keyTab="/etc/keys/alfrescohttp.keytab"
+				   principal="HTTP/alfrescodemo.com";
+				};
+
+				com.sun.net.ssl.client {
+				   com.sun.security.auth.module.Krb5LoginModule sufficient;
+				};
+
+				other {
+				   com.sun.security.auth.module.Krb5LoginModule sufficient;
+				};
+
+			--- vi $JAVA_HOME/jre/lib/security/java.security and add this line:
+			
+				login.config.url.1=file:/java/jdk1.6.0_33/jre/lib/security/java.login.config
+
+			--- add a Kerberos user for testing on Win2k3 AD: kbuser1/Alfr3sc0
+			--- On Alfresco server, copy the share-config-custom.xml to share-config-custom.xml.passthru 
+			--- cp share-config-custom.xml.sample share-config-custom.xml, follow comments for kerberos *and* sso
+			--- Start Alfresco and watch logs
+			--- Login on Windows 7 as example\kbuser1, add http://alfrescodemo.com as secure site
+			--- Map a webdav drive.
+
+			--- For Firefox these settings must be set:
+
+				network.negotiate-auth.delegation-uris http://alfrescodemo.com:8080/share
+				network.negotiate-auth.trusted-uris http://alfrescodemo.com:8080/alfresco
+				network.negotiate-auth.using-native-gsslib false
+
+			--- For IE simply add http://*.domain.tld to trusted sites
+
+
 		- Debugging
 
 			log4j.logger.org.alfresco.web.app.servlet.KerberosAuthenticationFilter=debug
